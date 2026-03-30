@@ -173,7 +173,7 @@ php artisan test
 
 ## Deploy Online (MySQL)
 
-### Option A: Railway
+### Railway
 
 1. Push this project to GitHub.
 2. Create a new Railway project from the repo.
@@ -191,26 +191,6 @@ php artisan migrate --force && php artisan db:seed --force && php artisan serve 
 ```
 
 6. Use Railway-provided public URL for API testing.
-
-### Option B: Render
-
-1. Push repo to GitHub.
-2. Create a new Web Service on Render from the repo.
-3. Create a MySQL database (Render or external managed MySQL).
-4. Set environment variables (same as Railway).
-5. Build command:
-
-```bash
-composer install --no-dev --optimize-autoloader
-```
-
-6. Start command:
-
-```bash
-php artisan migrate --force && php artisan db:seed --force && php artisan serve --host=0.0.0.0 --port=${PORT}
-```
-
-7. Test via Render URL.
 
 ## Notes
 
