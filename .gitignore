@@ -1,7 +1,6 @@
 *.log
 .DS_Store
 .env
-.env.example
 .env.backup
 .env.production
 .phpactor.json
@@ -23,3 +22,8 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+Software-Engineering-Internship-Coding-Challenge-2026.zip
+Software-Engineering-Internship-Coding-Challenge-2026 (2)/
+ Software-Engineering-Internship-Coding-Challenge-2026/
+ Software-Engineering-Internship-Coding-Challenge-2026
+ Software-Engineering-Internship-Coding-Challenge-2026
