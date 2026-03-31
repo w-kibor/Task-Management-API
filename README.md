@@ -1,198 +1,331 @@
-# Task Management API (Laravel + MySQL)
+# Task Management API
 
-Laravel Engineer Intern Take-Home Assignment implementation.
+A RESTful API for managing tasks with priority levels, due dates, and status tracking. Built with Laravel 13 and MySQL.
+
+**Status**: ✅ Complete with all required features and bonus functionality
+
+## Table of Contents
+
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Database Schema](#database-schema)
+- [API Endpoints](#api-endpoints)
+- [Running Tests](#running-tests)
+- [Deployment](#deployment)
+- [Project Structure](#project-structure)
+- [Notes](#notes)
 
 ## Features
 
-1. Create task
-2. List tasks
-3. Update task status
-4. Delete task
-5. Daily task report (bonus)
+1. ✅ **Create Task** - Add new tasks with title, due date, and priority
+2. ✅ **List Tasks** - Retrieve tasks with optional status filtering, sorted by priority and due date
+3. ✅ **Update Task Status** - Progress tasks through defined state transitions (pending → in_progress → done)
+4. ✅ **Delete Task** - Remove completed tasks with status protection
+5. ✅ **Daily Report** (Bonus) - Generate summary reports of tasks grouped by priority and status for specific dates
 
 ## Tech Stack
 
-- PHP 8.3+
-- Laravel 13
-- MySQL
+- **Framework**: Laravel 13
+- **Language**: PHP 8.3+
+- **Database**: MySQL 8.0+
+- **Build Tools**: Vite
+
+## Requirements
+
+- PHP 8.3 or higher
+- Composer
+- MySQL 8.0 or higher
+- Node.js 18+ (for Vite)
+- Git
 
 ## Database Schema
 
-Table: `tasks`
+### Table: `tasks`
 
-- `id` (bigint, primary key)
-- `title` (string)
-- `due_date` (date)
-- `priority` (enum: `low`, `medium`, `high`)
-- `status` (enum: `pending`, `in_progress`, `done`)
-- `created_at`
-- `updated_at`
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | `bigint unsigned` | PRIMARY KEY, AUTO_INCREMENT | Unique task identifier |
+| `title` | `varchar(255)` | NOT NULL | Task title/description |
+| `due_date` | `date` | NOT NULL | Expected completion date |
+| `priority` | `enum('low','medium','high')` | NOT NULL | Task priority level |
+| `status` | `enum('pending','in_progress','done')` | NOT NULL, DEFAULT 'pending' | Current task status |
+| `created_at` | `timestamp` | NULL | Creation timestamp |
+| `updated_at` | `timestamp` | NULL | Last update timestamp |
 
-Business-level uniqueness rule is also enforced at DB level with a unique index on `title + due_date`.
+**Unique Constraint**: `title` + `due_date` (prevents duplicate tasks on the same date)
 
 ## API Endpoints
 
-### 1) Create Task
+All endpoints require `Content-Type: application/json` headers where applicable.
 
-- Method: `POST`
-- URL: `/api/tasks`
-- Rules:
-	- `title` cannot duplicate another task with the same `due_date`
-	- `priority` must be one of `low`, `medium`, `high`
-	- `due_date` must be today or later
+### 1. Create Task
 
-Example:
+**Endpoint**: `POST /api/tasks`
+
+**Request Body**:
+```json
+{
+  "title": "Task title (required)",
+  "due_date": "YYYY-MM-DD (required, must be today or later)",
+  "priority": "low|medium|high (required)"
+}
+```
+
+**Validation Rules**:
+- `title` cannot duplicate another task with the same `due_date`
+- `priority` must be one of: `low`, `medium`, `high`
+- `due_date` must be today or later
+
+**Example:**
 
 ```bash
 curl -X POST http://localhost:8000/api/tasks \
-	-H "Content-Type: application/json" \
-	-d '{
-		"title": "Prepare API docs",
-		"due_date": "2026-03-28",
-		"priority": "high"
-	}'
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Prepare API documentation",
+    "due_date": "2026-04-15",
+    "priority": "high"
+  }'
 ```
 
-### 2) List Tasks
+---
 
-- Method: `GET`
-- URL: `/api/tasks`
-- Optional query param: `status`
-- Rules:
-	- Sort by priority (`high` -> `medium` -> `low`)
-	- Then sort by `due_date` ascending
-	- Returns meaningful JSON when no tasks exist
+### 2. List Tasks
 
-Examples:
+**Endpoint**: `GET /api/tasks`
+
+**Query Parameters**:
+- `status` (optional): Filter by `pending`, `in_progress`, or `done`
+
+**Response Sorting**:
+- Primary: By priority (`high` → `medium` → `low`)
+- Secondary: By `due_date` (ascending)
+
+**Examples:**
 
 ```bash
+# List all tasks
 curl http://localhost:8000/api/tasks
+
+# Filter by status
 curl http://localhost:8000/api/tasks?status=in_progress
 ```
 
-### 3) Update Task Status
+---
 
-- Method: `PATCH`
-- URL: `/api/tasks/{id}/status`
-- Rules:
-	- Allowed progression only:
-		- `pending` -> `in_progress`
-		- `in_progress` -> `done`
-	- Cannot skip or revert status
+### 3. Update Task Status
 
-Example:
+**Endpoint**: `PATCH /api/tasks/{id}/status`
+
+**Request Body**:
+```json
+{
+  "status": "pending|in_progress|done (required)"
+}
+```
+
+**Status Transitions** (only these are allowed):
+- `pending` → `in_progress`
+- `in_progress` → `done`
+
+Cannot skip or revert status changes.
+
+**Example:**
 
 ```bash
 curl -X PATCH http://localhost:8000/api/tasks/1/status \
-	-H "Content-Type: application/json" \
-	-d '{"status":"in_progress"}'
+  -H "Content-Type: application/json" \
+  -d '{"status":"in_progress"}'
 ```
 
-### 4) Delete Task
+---
 
-- Method: `DELETE`
-- URL: `/api/tasks/{id}`
-- Rule:
-	- Only tasks with `done` status can be deleted
-	- Otherwise returns `403 Forbidden`
+### 4. Delete Task
 
-Example:
+**Endpoint**: `DELETE /api/tasks/{id}`
+
+**Restrictions**:
+- Only tasks with `done` status can be deleted
+- Returns `403 Forbidden` for non-completed tasks
+
+**Example:**
 
 ```bash
 curl -X DELETE http://localhost:8000/api/tasks/1
 ```
 
-### 5) Daily Report (Bonus)
+---
 
-- Method: `GET`
-- URL: `/api/tasks/report?date=YYYY-MM-DD`
-- Returns counts per priority and status for that date (`due_date`)
+### 5. Daily Report (Bonus)
 
-Example:
+**Endpoint**: `GET /api/tasks/report`
+
+**Query Parameters**:
+- `date` (required): Report date in `YYYY-MM-DD` format
+
+**Returns**: Task counts grouped by priority and status for tasks due on that date.
+
+**Response Format**:
+```json
+{
+  "date": "2026-03-28",
+  "summary": {
+    "high": {"pending": 2, "in_progress": 1, "done": 0},
+    "medium": {"pending": 1, "in_progress": 0, "done": 3},
+    "low": {"pending": 0, "in_progress": 0, "done": 1}
+  }
+}
+```
+
+**Example:**
 
 ```bash
 curl "http://localhost:8000/api/tasks/report?date=2026-03-28"
 ```
 
-Sample response:
+## Installation
 
-```json
-{
-	"date": "2026-03-28",
-	"summary": {
-		"high": {"pending": 2, "in_progress": 1, "done": 0},
-		"medium": {"pending": 1, "in_progress": 0, "done": 3},
-		"low": {"pending": 0, "in_progress": 0, "done": 1}
-	}
-}
-```
-
-## Local Setup (MySQL)
-
-1. Install dependencies:
+### 1. Clone & Setup Dependencies
 
 ```bash
+git clone <repository-url>
+cd <project-directory>
 composer install
+npm install  # Optional: if using JS assets
 ```
 
-2. Copy environment file:
+### 2. Configure Environment
 
 ```bash
 cp .env.example .env
 php artisan key:generate
 ```
 
-3. Configure MySQL in `.env`:
+### 3. Database Configuration
+
+Edit `.env` and configure your MySQL connection:
 
 ```dotenv
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
-DB_DATABASE=task_manager
+DB_DATABASE=task_management
 DB_USERNAME=root
 DB_PASSWORD=your_password
 ```
 
-4. Create database and run migrations + seeders:
+### 4. Setup Database
 
 ```bash
 php artisan migrate --seed
 ```
 
-5. Start server:
+This will:
+- Create all necessary tables (users, tasks, cache, jobs, migrations)
+- Run database seeders to populate sample data
+
+### 5. Start Development Server
 
 ```bash
 php artisan serve
 ```
 
+The API will be available at `http://localhost:8000/api/tasks`
+
 ## Running Tests
+
+Execute the test suite with PHPUnit:
 
 ```bash
 php artisan test
 ```
 
-## Deploy Online (MySQL)
+**Test Coverage**:
+- Feature tests for all API endpoints
+- Validation rule testing
+- Status transition constraints
+- Error handling and edge cases
 
-### Railway
+## Deployment
 
-1. Push this project to GitHub.
-2. Create a new Railway project from the repo.
-3. Add a MySQL service in Railway.
-4. Set environment variables in Railway:
-	 - `APP_ENV=production`
-	 - `APP_DEBUG=false`
-	 - `APP_KEY` (generate locally with `php artisan key:generate --show`)
-	 - `DB_CONNECTION=mysql`
-	 - `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` from Railway MySQL service
-5. Configure start command:
+### Deploy to Railway (Recommended)
 
-```bash
-php artisan migrate --force && php artisan db:seed --force && php artisan serve --host=0.0.0.0 --port=${PORT}
+Railway simplifies deployment with automatic scaling and data persistence.
+
+#### Steps:
+
+1. **Push to GitHub**:
+   ```bash
+   git add .
+   git commit -m "Ready for deployment"
+   git push origin main
+   ```
+
+2. **Create Railway Project**:
+   - Go to [Railway.app](https://railway.app)
+   - Create new project from GitHub repo
+
+3. **Add MySQL Service**:
+   - Add MySQL service from Railway marketplace
+   - Note the database credentials
+
+4. **Configure Environment Variables**:
+   - `APP_ENV=production`
+   - `APP_DEBUG=false`
+   - `APP_KEY` (run `php artisan key:generate --show` locally)
+   - Database variables:
+     - `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD` from Railway MySQL
+     - `DB_DATABASE=task_management`
+
+5. **Set Start Command**:
+   ```bash
+   php artisan migrate --force && php artisan db:seed --force && php artisan serve --host=0.0.0.0 --port=${PORT}
+   ```
+
+6. **Deploy & Test**:
+   - Railway will deploy automatically
+   - Use the provided Railway URL for API testing
+   - Example: `https://your-railway-app.up.railway.app/api/tasks`
+
+---
+
+## Project Structure
+
 ```
-
-6. Use Railway-provided public URL for API testing.
+├── app/
+│   ├── Http/
+│   │   ├── Controllers/          # API controllers
+│   │   └── Requests/             # Form request validation
+│   └── Models/
+│       ├── Task.php              # Task model
+│       └── User.php              # User model
+├── config/                        # Configuration files
+├── database/
+│   ├── migrations/               # Database migrations
+│   ├── seeders/                  # Database seeders
+│   └── task_management_dump.sql  # Database snapshot
+├── routes/
+│   ├── api.php                   # API routes
+│   ├── web.php                   # Web routes
+│   └── console.php               # Console commands
+├── tests/
+│   ├── Feature/                  # Feature tests
+│   │   └── TaskApiTest.php       # Task API tests
+│   └── Unit/                     # Unit tests
+├── .env.example                  # Environment template
+├── composer.json                 # PHP dependencies
+└── README.md                      # This file
+```
 
 ## Notes
 
-- Feature tests cover all required assignment rules.
-- API routes are available under `/api/tasks`.
+- ✅ All required features implemented and tested
+- ✅ Bonus daily report endpoint included
+- ✅ Database-level constraints enforce business rules
+- ✅ Comprehensive feature tests cover all requirements
+- ✅ API uses RESTful principles
+- ✅ Proper HTTP status codes and error responses
+- 🔒 Data validation at both application and database levels
+- 📝 All routes use the `/api` prefix for organization
