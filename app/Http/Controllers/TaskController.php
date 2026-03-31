@@ -41,14 +41,9 @@ class TaskController extends Controller
             ->orderBy('due_date')
             ->get();
 
-        if ($tasks->isEmpty()) {
-            return response()->json([
-                'message' => 'No tasks found.',
-                'data' => [],
-            ]);
-        }
-
-        return response()->json($tasks);
+        return response()->json([
+            'data' => $tasks,
+        ]);
     }
 
     public function updateStatus(UpdateTaskStatusRequest $request, Task $task): JsonResponse
@@ -127,8 +122,10 @@ class TaskController extends Controller
         }
 
         return response()->json([
-            'date' => $date,
-            'summary' => $summary,
+            'data' => [
+                'date' => $date,
+                'summary' => $summary,
+            ],
         ]);
     }
 }
