@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Task Management Dashboard</title>
     
     <!-- Fonts -->
@@ -30,6 +31,25 @@
 
         header {
             margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .user-controls {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .user-chip {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #e3e3e0;
+            border-radius: 999px;
+            font-size: 0.875rem;
+            color: #706f6c;
+            background: #fff;
         }
 
         h1 {
@@ -393,8 +413,18 @@
     <div class="container">
         <!-- Header -->
         <header>
-            <h1>📋 Task Manager</h1>
-            <p class="subtitle">Manage your tasks with priority levels and status tracking</p>
+            <div>
+                <h1>📋 Task Manager</h1>
+                <p class="subtitle">Manage your tasks with priority levels and status tracking</p>
+            </div>
+
+            <div class="user-controls">
+                <div class="user-chip">{{ auth()->user()->email }}</div>
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button type="submit" class="btn">Logout</button>
+                </form>
+            </div>
         </header>
 
         <!-- Alerts -->
@@ -477,6 +507,15 @@
     <script>
         const TaskApp = {
             apiBase: '/api/tasks',
+            csrfToken: document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+
+            jsonHeaders() {
+                return {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': this.csrfToken,
+                    'Accept': 'application/json',
+                };
+            },
             
             init() {
                 this.setupTabs();
@@ -532,7 +571,7 @@
                 try {
                     const response = await fetch(this.apiBase, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: this.jsonHeaders(),
                         body: JSON.stringify({ title, due_date: dueDate, priority })
                     });
                     const data = await response.json();
@@ -607,7 +646,7 @@
                 try {
                     const response = await fetch(`${this.apiBase}/${id}/status`, {
                         method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: this.jsonHeaders(),
                         body: JSON.stringify({ status })
                     });
                     const data = await response.json();
@@ -628,7 +667,10 @@
                 if (!confirm('Delete this task?')) return;
 
                 try {
-                    const response = await fetch(`${this.apiBase}/${id}`, { method: 'DELETE' });
+                    const response = await fetch(`${this.apiBase}/${id}`, {
+                        method: 'DELETE',
+                        headers: this.jsonHeaders(),
+                    });
                     const data = await response.json();
 
                     if (!response.ok) {
