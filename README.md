@@ -19,6 +19,7 @@ A RESTful API for managing tasks with priority levels, due dates, and status tra
 
 ## Features
 
+0. ✅ **Authentication & Authorization** - Session login/register with per-user task access control
 1. ✅ **Create Task** - Add new tasks with title, due date, and priority
 2. ✅ **List Tasks** - Retrieve tasks with optional status filtering, sorted by priority and due date
 3. ✅ **Update Task Status** - Progress tasks through defined state transitions (pending → in_progress → done)
@@ -233,6 +234,13 @@ php artisan serve
 ```
 
 The API will be available at `http://localhost:8000/api/tasks`
+
+## Authentication
+
+- Protected routes now require an authenticated session.
+- Register at `/register` or use seeded credentials:
+  - Email: `demo@example.com`
+  - Password: `password123`
 
 ## Running Tests
 

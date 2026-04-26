@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Task;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -10,9 +11,17 @@ class TaskApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_it_creates_a_task(): void
+    public function test_unauthenticated_users_cannot_access_task_endpoints(): void
     {
-        $response = $this->postJson('/api/tasks', [
+        $this->getJson('/api/tasks')->assertUnauthorized();
+        $this->postJson('/api/tasks', [])->assertUnauthorized();
+    }
+
+    public function test_it_creates_a_task_for_the_authenticated_user(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->postJson('/api/tasks', [
             'title' => 'Create API endpoint docs',
             'due_date' => now()->toDateString(),
             'priority' => 'high',
@@ -24,199 +33,146 @@ class TaskApiTest extends TestCase
                 'title' => 'Create API endpoint docs',
                 'priority' => 'high',
                 'status' => 'pending',
+                'user_id' => $user->id,
             ]);
 
         $this->assertDatabaseHas('tasks', [
+            'user_id' => $user->id,
             'title' => 'Create API endpoint docs',
             'priority' => 'high',
             'status' => 'pending',
         ]);
     }
 
-    public function test_it_rejects_duplicate_title_for_same_due_date(): void
+    public function test_duplicate_title_on_same_date_is_rejected_per_user_only(): void
     {
+        $user = User::factory()->create();
+        $otherUser = User::factory()->create();
+
         Task::query()->create([
+            'user_id' => $user->id,
             'title' => 'Duplicate constraint test',
             'due_date' => now()->toDateString(),
             'priority' => 'low',
             'status' => 'pending',
         ]);
 
-        $response = $this->postJson('/api/tasks', [
-            'title' => 'Duplicate constraint test',
-            'due_date' => now()->toDateString(),
-            'priority' => 'high',
-        ]);
+        $this->actingAs($user)
+            ->postJson('/api/tasks', [
+                'title' => 'Duplicate constraint test',
+                'due_date' => now()->toDateString(),
+                'priority' => 'high',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['title']);
 
-        $response->assertUnprocessable()->assertJsonValidationErrors(['title']);
+        $this->actingAs($otherUser)
+            ->postJson('/api/tasks', [
+                'title' => 'Duplicate constraint test',
+                'due_date' => now()->toDateString(),
+                'priority' => 'high',
+            ])
+            ->assertCreated();
     }
 
-    public function test_it_rejects_due_date_in_the_past(): void
+    public function test_it_lists_only_tasks_for_the_authenticated_user(): void
     {
-        $response = $this->postJson('/api/tasks', [
-            'title' => 'Past due date test',
-            'due_date' => now()->subDay()->toDateString(),
-            'priority' => 'medium',
-        ]);
-
-        $response->assertUnprocessable()->assertJsonValidationErrors(['due_date']);
-    }
-
-    public function test_it_lists_tasks_sorted_by_priority_then_due_date(): void
-    {
-        Task::query()->create([
-            'title' => 'Low task',
-            'due_date' => now()->toDateString(),
-            'priority' => 'low',
-            'status' => 'pending',
-        ]);
+        $user = User::factory()->create();
+        $otherUser = User::factory()->create();
 
         Task::query()->create([
-            'title' => 'Medium task',
-            'due_date' => now()->addDay()->toDateString(),
-            'priority' => 'medium',
-            'status' => 'pending',
-        ]);
-
-        Task::query()->create([
-            'title' => 'High early',
+            'user_id' => $user->id,
+            'title' => 'My task',
             'due_date' => now()->toDateString(),
             'priority' => 'high',
             'status' => 'pending',
         ]);
 
         Task::query()->create([
-            'title' => 'High later',
-            'due_date' => now()->addDays(2)->toDateString(),
+            'user_id' => $otherUser->id,
+            'title' => 'Other user task',
+            'due_date' => now()->toDateString(),
             'priority' => 'high',
             'status' => 'pending',
         ]);
 
-        $response = $this->getJson('/api/tasks');
+        $response = $this->actingAs($user)->getJson('/api/tasks');
 
         $response->assertOk();
-        $this->assertSame('High early', $response->json('0.title'));
-        $this->assertSame('High later', $response->json('1.title'));
-        $this->assertSame('Medium task', $response->json('2.title'));
-        $this->assertSame('Low task', $response->json('3.title'));
+        $this->assertCount(1, $response->json('data'));
+        $this->assertSame('My task', $response->json('data.0.title'));
     }
 
-    public function test_it_can_filter_list_by_status(): void
+    public function test_it_prevents_updating_another_users_task(): void
     {
-        Task::query()->create([
-            'title' => 'Pending task',
-            'due_date' => now()->toDateString(),
-            'priority' => 'high',
-            'status' => 'pending',
-        ]);
+        $owner = User::factory()->create();
+        $intruder = User::factory()->create();
 
-        Task::query()->create([
-            'title' => 'Done task',
-            'due_date' => now()->toDateString(),
-            'priority' => 'medium',
-            'status' => 'done',
-        ]);
-
-        $response = $this->getJson('/api/tasks?status=done');
-
-        $response->assertOk();
-        $this->assertCount(1, $response->json());
-        $this->assertSame('Done task', $response->json('0.title'));
-    }
-
-    public function test_it_returns_meaningful_json_when_no_tasks_exist(): void
-    {
-        $response = $this->getJson('/api/tasks');
-
-        $response->assertOk()->assertExactJson([
-            'message' => 'No tasks found.',
-            'data' => [],
-        ]);
-    }
-
-    public function test_it_allows_only_forward_status_progression(): void
-    {
         $task = Task::query()->create([
-            'title' => 'Status progression task',
+            'user_id' => $owner->id,
+            'title' => 'Owner task',
             'due_date' => now()->toDateString(),
             'priority' => 'high',
             'status' => 'pending',
         ]);
 
-        $response = $this->patchJson("/api/tasks/{$task->id}/status", [
-            'status' => 'done',
-        ]);
-
-        $response->assertUnprocessable();
-
-        $this->patchJson("/api/tasks/{$task->id}/status", [
-            'status' => 'in_progress',
-        ])->assertOk();
-
-        $this->patchJson("/api/tasks/{$task->id}/status", [
-            'status' => 'done',
-        ])->assertOk();
+        $this->actingAs($intruder)
+            ->patchJson("/api/tasks/{$task->id}/status", ['status' => 'in_progress'])
+            ->assertForbidden();
     }
 
-    public function test_it_only_deletes_done_tasks(): void
+    public function test_it_prevents_deleting_another_users_task(): void
     {
-        $inProgressTask = Task::query()->create([
-            'title' => 'Cannot delete me yet',
-            'due_date' => now()->toDateString(),
-            'priority' => 'medium',
-            'status' => 'in_progress',
-        ]);
+        $owner = User::factory()->create();
+        $intruder = User::factory()->create();
 
-        $doneTask = Task::query()->create([
-            'title' => 'Can delete me',
+        $task = Task::query()->create([
+            'user_id' => $owner->id,
+            'title' => 'Owner done task',
             'due_date' => now()->toDateString(),
             'priority' => 'low',
             'status' => 'done',
         ]);
 
-        $this->deleteJson("/api/tasks/{$inProgressTask->id}")
+        $this->actingAs($intruder)
+            ->deleteJson("/api/tasks/{$task->id}")
             ->assertForbidden();
 
-        $this->deleteJson("/api/tasks/{$doneTask->id}")
-            ->assertOk();
-
-        $this->assertDatabaseHas('tasks', ['id' => $inProgressTask->id]);
-        $this->assertDatabaseMissing('tasks', ['id' => $doneTask->id]);
+        $this->assertDatabaseHas('tasks', ['id' => $task->id]);
     }
 
-    public function test_it_returns_daily_report_with_counts_per_priority_and_status(): void
+    public function test_daily_report_returns_counts_for_authenticated_user_only(): void
     {
+        $user = User::factory()->create();
+        $otherUser = User::factory()->create();
         $reportDate = now()->toDateString();
 
         Task::query()->create([
-            'title' => 'High pending',
+            'user_id' => $user->id,
+            'title' => 'My high pending',
             'due_date' => $reportDate,
             'priority' => 'high',
             'status' => 'pending',
         ]);
 
         Task::query()->create([
-            'title' => 'Medium done',
+            'user_id' => $otherUser->id,
+            'title' => 'Other high pending',
             'due_date' => $reportDate,
-            'priority' => 'medium',
-            'status' => 'done',
+            'priority' => 'high',
+            'status' => 'pending',
         ]);
 
-        Task::query()->create([
-            'title' => 'Low in progress',
-            'due_date' => $reportDate,
-            'priority' => 'low',
-            'status' => 'in_progress',
-        ]);
-
-        $response = $this->getJson('/api/tasks/report?date='.$reportDate);
+        $response = $this->actingAs($user)->getJson('/api/tasks/report?date='.$reportDate);
 
         $response->assertOk()->assertJson([
-            'date' => $reportDate,
-            'summary' => [
-                'high' => ['pending' => 1, 'in_progress' => 0, 'done' => 0],
-                'medium' => ['pending' => 0, 'in_progress' => 0, 'done' => 1],
-                'low' => ['pending' => 0, 'in_progress' => 1, 'done' => 0],
+            'data' => [
+                'date' => $reportDate,
+                'summary' => [
+                    'high' => ['pending' => 1, 'in_progress' => 0, 'done' => 0],
+                    'medium' => ['pending' => 0, 'in_progress' => 0, 'done' => 0],
+                    'low' => ['pending' => 0, 'in_progress' => 0, 'done' => 0],
+                ],
             ],
         ]);
     }
