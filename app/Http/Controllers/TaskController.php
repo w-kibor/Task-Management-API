@@ -15,6 +15,7 @@ class TaskController extends Controller
     public function store(StoreTaskRequest $request): JsonResponse
     {
         $task = Task::query()->create([
+            'user_id' => $request->user()->id,
             'title' => $request->string('title')->toString(),
             'due_date' => $request->string('due_date')->toString(),
             'priority' => $request->string('priority')->toString(),
@@ -30,7 +31,7 @@ class TaskController extends Controller
             'status' => ['nullable', Rule::in(['pending', 'in_progress', 'done'])],
         ]);
 
-        $query = Task::query();
+        $query = Task::query()->where('user_id', $request->user()->id);
 
         if ($request->filled('status')) {
             $query->where('status', $request->string('status')->toString());
@@ -48,6 +49,8 @@ class TaskController extends Controller
 
     public function updateStatus(UpdateTaskStatusRequest $request, Task $task): JsonResponse
     {
+        $this->authorize('update', $task);
+
         $allowedProgression = [
             'pending' => 'in_progress',
             'in_progress' => 'done',
@@ -77,6 +80,8 @@ class TaskController extends Controller
 
     public function destroy(Task $task): JsonResponse
     {
+        $this->authorize('delete', $task);
+
         if ($task->status !== 'done') {
             return response()->json([
                 'message' => 'Only tasks with done status can be deleted.',
@@ -113,6 +118,7 @@ class TaskController extends Controller
 
         $counts = Task::query()
             ->selectRaw('priority, status, COUNT(*) as total')
+            ->where('user_id', $request->user()->id)
             ->whereDate('due_date', $date)
             ->groupBy('priority', 'status')
             ->get();
