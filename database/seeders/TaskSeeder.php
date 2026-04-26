@@ -3,7 +3,9 @@
 namespace Database\Seeders;
 
 use App\Models\Task;
+use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class TaskSeeder extends Seeder
 {
@@ -12,11 +14,20 @@ class TaskSeeder extends Seeder
      */
     public function run(): void
     {
+        $user = User::query()->firstOrCreate(
+            ['email' => 'demo@example.com'],
+            [
+                'name' => 'Demo User',
+                'password' => Hash::make('password123'),
+            ]
+        );
+
         $today = now()->toDateString();
         $tomorrow = now()->addDay()->toDateString();
 
         Task::query()->insert([
             [
+                'user_id' => $user->id,
                 'title' => 'Review internship assignment brief',
                 'due_date' => $today,
                 'priority' => 'high',
@@ -25,6 +36,7 @@ class TaskSeeder extends Seeder
                 'updated_at' => now(),
             ],
             [
+                'user_id' => $user->id,
                 'title' => 'Implement tasks migration and model',
                 'due_date' => $today,
                 'priority' => 'medium',
@@ -33,6 +45,7 @@ class TaskSeeder extends Seeder
                 'updated_at' => now(),
             ],
             [
+                'user_id' => $user->id,
                 'title' => 'Prepare API deployment checklist',
                 'due_date' => $tomorrow,
                 'priority' => 'low',

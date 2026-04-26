@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Model;
 
 class Task extends Model
@@ -13,6 +14,7 @@ class Task extends Model
      * @var list<string>
      */
     protected $fillable = [
+        'user_id',
         'title',
         'due_date',
         'priority',
@@ -25,4 +27,9 @@ class Task extends Model
     protected $casts = [
         'due_date' => 'date:Y-m-d',
     ];
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 }

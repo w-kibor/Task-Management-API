@@ -28,6 +28,7 @@ class StoreTaskRequest extends FormRequest
                 'string',
                 'max:255',
                 Rule::unique('tasks')->where(function ($query): void {
+                    $query->where('user_id', $this->user()?->id);
                     $query->whereDate('due_date', $this->input('due_date'));
                 }),
             ],
